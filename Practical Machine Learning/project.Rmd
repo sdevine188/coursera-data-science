@@ -1,0 +1,74 @@
+---
+Practical Machine Learning Project
+---
+
+Summary
+## This analysis considers the Weight Lifting Exercise Dataset and fits a regression tree to predict whether a dumb bell lift exercise was conducted properly or not, based on the various measurements from sensors attached the individual and the dumb bell.
+
+Results
+## This model has an out-of-sample accuracy of appoximately 50%.
+
+Clean Data
+```{r}
+## call libraries
+library(caret)
+library(ggplot2)
+library(rattle)
+
+## read in data
+setwd("C:/Users/Steve/Desktop/Coursera/Practical Machine Learning")
+full_training <- read.csv("pml-training.csv")
+full_testing <- read.csv("pml-testing.csv")
+
+## split full_training into training and testing
+in_train <- createDataPartition(full_training$classe, p = .7, list = FALSE)
+training <- full_training[in_train, ]
+testing <- full_training[-in_train, ]
+
+## remove non-measurement variables
+training1 <- training[ , -c(1:7)]
+
+## remove variables with mostly NA values
+missing <- lapply(training1, function(x) length(which(is.na(x))))
+no_missing <- which(missing == 0)
+training2 <- training1[ , no_missing]
+
+## remove variables with mostly blanks
+blanks <- lapply(training2, function(x) "" %in% x)
+no_blanks <- which(blanks == FALSE)
+training3 <- training2[ , no_blanks]
+
+## convert integers and factor-numbers to numeric
+class <- sapply(training3, class)
+yes_integer <- which(class == "integer")
+training4 <- training3
+training4[ , yes_integer] <- sapply(training3[ , yes_integer], as.numeric)
+```
+
+Exploratory data analysis
+```{r}
+## histogram of classe counts
+ggplot(data = training, aes(x = classe)) + geom_histogram()
+```
+
+Build Rpart tree with training dataset and print tree diagram
+```{r}
+mod_fit_rpart <- train(classe ~ ., method = "rpart", data = training4)
+mod_fit_rpart$finalModel
+fancyRpartPlot(mod_fit_rpart$finalModel)
+```
+
+Predict outcome in testing dataset using Rpart tree model and print confusion matrix
+```{r}
+pred <- predict(mod_fit_rpart, testing)
+confusionMatrix(pred, testing$classe)
+```
+
+Predict 20 outcomes in full_testing dataset and print confusion matrix
+```{r}
+pred2 <- predict(mod_fit_rpart, full_testing)
+confusionMatrix(pred, testing$classe)
+```
+
+
+
