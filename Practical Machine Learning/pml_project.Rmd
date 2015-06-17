@@ -1,0 +1,111 @@
+---
+Practical Machine Learning Project
+---
+
+### Summary
+This analysis considers the Weight Lifting Exercise Dataset and fits a random forest model to predict whether a dumb bell lift exercise was conducted properly or not, based on the various measurements from sensors attached the individual and the dumb bell. (http://groupware.les.inf.puc-rio.br/har)
+
+### Clean Data
+Before fitting the model, the data must be downloaded, split into training and testing sets, and cleaned.  The Weight Lifting Exercise Dataset can be downloaded here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv.
+
+```{r}
+# call libraries
+library(caret)
+library(car)
+
+# read in data
+setwd("C:/Users/sdevine/Desktop/pml_project")
+full_training <- read.csv("pml-training.csv")
+full_testing <- read.csv("pml-testing.csv")
+
+# split full_training into training and testing datasets
+in_train <- createDataPartition(full_training$classe, p = .7, list = FALSE)
+training <- full_training[in_train, ]
+testing <- full_training[-in_train, ]
+
+# remove non-predictor variables
+training1 <- training[ , -1]
+training1 <- training1[ , -c(2:6)]
+
+testing1 <- testing[ , -1]
+testing1 <- testing1[ , -c(2:6)]
+
+# remove columns with NA
+training1 <- training1[ , colSums(is.na(training1)) == 0]
+
+testing1 <- testing1[ , colSums(is.na(testing1)) == 0]
+
+# remove rows with #DIV/0!
+training2 <- training1
+rownames(training2) <- NULL
+remove <- rowSums(training2 == "#DIV/0!")
+remove2 <- which(remove != 0)
+training3 <- training2[-remove2, ]
+
+testing2 <- testing1
+rownames(testing2) <- NULL
+remove <- rowSums(testing2 == "#DIV/0!")
+remove2 <- which(remove != 0)
+testing3 <- testing2[-remove2, ]
+
+# convert numeric-looking factors to numeric
+training4 <- training3
+training4 <- as.data.frame(lapply(training4[ , -c(1, 87)], function(x) as.numeric(as.character(x))))
+training4 <- cbind(training3[ , 1], training4)
+training4 <- cbind(training4, training3[ , 87])
+names(training4)[87] <- "classe"
+names(training4)[1] <- "user_name"
+
+testing4 <- testing3
+testing4 <- as.data.frame(lapply(testing4[ , -c(1, 87)], function(x) as.numeric(as.character(x))))
+testing4 <- cbind(testing3[ , 1], testing4)
+testing4 <- cbind(testing4, testing3[ , 87])
+names(testing4)[87] <- "classe"
+names(testing4)[1] <- "user_name"
+
+# remove columns that now consist only of NA after #DIV/0! rows removed
+training5 <- training4
+na <- colSums(is.na(training5))
+remove3 <- which(na != 0)
+training5 <- training5[ , -remove3]
+
+testing5 <- testing4
+na <- colSums(is.na(testing5))
+remove3 <- which(na != 0)
+testing5 <- testing5[ , -remove3]
+```
+
+### Exploratory data analysis
+Once the data have been cleaned, some exploratory analysis can help visualize the training dataset.
+
+Here is a summary of the training dataset:
+```{r}
+summary(training5)
+```
+
+Here is a histogram of the outcome variable "classe", which classifies how the exercise was conducted.  Class A denotes a properly-conducted exercise, while Classes B through E denote common mistakes in form when conducted the exercise.
+```{r}
+ggplot(data = training5, aes(x = classe)) + geom_histogram()
+
+```
+
+### Build the Model
+This analysis uses the Random Forest algorithm, which tends to be reliably accurate and is not significanly biased by correlated covariates or outliers.  The model will incorporate all 53 covariates from the cleaned dataset, as indicated in the summary table above.  The model will be trained on the training data set, using 5-fold cross-validation, and the number of trees will be set at 250.
+```{r}
+train_rf <- trainControl(method = "cv", 5)
+rf_mod <- train(classe ~ ., method = "rf", data = training5, trControl = train_rf, ntree = 250)
+```
+The final model, shown below, has and out-of-bag estimated error rate less than 1%.
+```{r}
+rf_mod$finalModel
+```
+
+### Predict the Outcome
+Now the random forest model will be used to predict the outcome variable for the testing set.  The results of the confusion matrix show the model's out-of-sample overall accuracy is over 99%, and therefore an overall error rate of less than 1%.  The Kappa statistic is approximately .99%.
+```{r}
+rf_pred <- predict(rf_mod, testing5)
+confusionMatrix(rf_pred, testing5$classe)
+```
+
+
+
